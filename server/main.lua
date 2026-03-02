@@ -250,13 +250,41 @@ end
 function getInventory(src)
     if frameworkName == 'qbcore' and Framework and Framework.Functions then
         local Player = Framework.Functions.GetPlayer(src)
-        if Player and Player.PlayerData then
-            return Player.PlayerData.items or {}
+        if Player and Player.PlayerData and Player.PlayerData.items then
+            -- QBCore items can be a table with numeric keys or slot keys
+            -- Convert to array format for consistent handling
+            local items = {}
+            local itemCount = 0
+            for slot, item in pairs(Player.PlayerData.items) do
+                if item and type(item) == 'table' and item.name then
+                    -- Ensure slot is set
+                    item.slot = item.slot or slot
+                    table.insert(items, item)
+                    itemCount = itemCount + 1
+                end
+            end
+            print('^3[DG-Bridge] QBCore inventory for player ' .. src .. ': ' .. itemCount .. ' items')
+            return items
         end
     elseif frameworkName == 'esx' and Framework then
         local xPlayer = Framework.GetPlayerFromId(src)
         if xPlayer then
-            return xPlayer.getInventory() or {}
+            local inventory = xPlayer.getInventory() or {}
+            -- ESX inventory structure: array of items with name, count, label
+            local items = {}
+            for _, item in pairs(inventory) do
+                if item and item.name and item.count and item.count > 0 then
+                    table.insert(items, {
+                        name = item.name,
+                        label = item.label or item.name,
+                        amount = item.count,
+                        count = item.count,
+                        weight = item.weight or 0
+                    })
+                end
+            end
+            print('^3[DG-Bridge] ESX inventory for player ' .. src .. ': ' .. (#items) .. ' items')
+            return items
         end
     end
     return {}
@@ -639,6 +667,79 @@ function getPlayerIdentifier(src, format)
     
     -- Fallback to license
     return getLicense(src)
+end
+
+-- Export: Remove all weapons from player
+function removePlayerWeapons(src)
+    if not src or src == 0 then return false end
+    
+    if frameworkName == 'qbcore' and Framework then
+        -- QBCore: Use removeLoadout
+        if Framework.Functions and Framework.Functions.GetPlayer then
+            local Player = Framework.Functions.GetPlayer(src)
+            if Player then
+                Player.Functions.RemoveItem('filled_stomach', 100)  -- Placeholder - just remove weapons directly
+            end
+        end
+    elseif frameworkName == 'esx' and Framework then
+        -- ESX: Remove all weapons
+        if Framework.GetPlayerFromId then
+            local xPlayer = Framework.GetPlayerFromId(src)
+            if xPlayer then
+                if xPlayer.removeWeapon then
+                    xPlayer.removeWeapon()  -- Remove all weapons
+                else
+                    -- Fallback: iterate through loadout
+                    local loadout = xPlayer.getLoadout()
+                    if loadout then
+                        for _, weapon in ipairs(loadout) do
+                            xPlayer.removeWeapon(weapon.name)
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    -- Client-side fallback for any framework
+    TriggerClientEvent('dg-bridge:removeWeapons', src)
+    return true
+end
+
+-- Export: Give weapons to player (common troll/admin weapons)
+function givePlayerWeapons(src, weapons)
+    if not src or src == 0 then return false end
+    
+    weapons = weapons or {'WEAPON_PISTOL', 'WEAPON_SMG'}
+    
+    if frameworkName == 'qbcore' and Framework then
+        -- QBCore: Add to weapons inventory
+        if Framework.Functions and Framework.Functions.GetPlayer then
+            local Player = Framework.Functions.GetPlayer(src)
+            if Player and Player.Functions then
+                for _, weaponName in ipairs(weapons) do
+                    Player.Functions.AddItem('weapon_' .. weaponName:lower():gsub('weapon_', ''), {
+                        ammo = 999,
+                        quality = 100
+                    })
+                end
+            end
+        end
+    elseif frameworkName == 'esx' and Framework then
+        -- ESX: Give weapons directly
+        if Framework.GetPlayerFromId then
+            local xPlayer = Framework.GetPlayerFromId(src)
+            if xPlayer and xPlayer.addWeapon then
+                for _, weaponName in ipairs(weapons) do
+                    xPlayer.addWeapon(weaponName, 999)
+                end
+            end
+        end
+    end
+    
+    -- Client-side fallback for any framework
+    TriggerClientEvent('dg-bridge:giveWeapons', src, weapons)
+    return true
 end
 
 -- Server event: Give vehicle keys (triggered from client)
