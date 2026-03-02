@@ -38,15 +38,19 @@ exports['dg-bridge']:getFramework()              -- Get framework name
 exports['dg-bridge']:getLicense(src)             -- Get player license
 exports['dg-bridge']:getIdentifier(src, type)    -- Get specific identifier (steam, discord, etc)
 exports['dg-bridge']:getAllIdentifiers(src)      -- Get all identifiers as table
+exports['dg-bridge']:getPlayerIdentifier(src, format) -- Get framework ID (citizenid/identifier) ✨NEW
 
 -- Player Management
 exports['dg-bridge']:kickPlayer(src, reason)     -- Kick player
 exports['dg-bridge']:banPlayer(src, reason, hrs) -- Ban player
 exports['dg-bridge']:notifyPlayer(src, msg, type, duration) -- Send notification
 exports['dg-bridge']:isPlayerAdmin(src)          -- Check if admin
+exports['dg-bridge']:revivePlayer(src)           -- Revive player ✨NEW
 
 -- Character Info
 exports['dg-bridge']:getPlayerJob(src)           -- Get job name, grade, label
+exports['dg-bridge']:setPlayerJob(src, job, grade) -- Set player job & rank ✨NEW
+exports['dg-bridge']:getAllJobs()                -- Get all jobs from framework ✨NEW
 exports['dg-bridge']:getPlayerGang(src)          -- Get gang info (QBCore)
 exports['dg-bridge']:getCharacterName(src)       -- Get character name
 exports['dg-bridge']:getPlayerCoords(src)        -- Get player coordinates
@@ -60,13 +64,15 @@ exports['dg-bridge']:removeMoney(src, type, amount) -- Remove money
 exports['dg-bridge']:giveItem(src, item, amount, metadata) -- Give item
 exports['dg-bridge']:removeItem(src, item, amount)         -- Remove item
 exports['dg-bridge']:getInventory(src)                     -- Get full inventory
+exports['dg-bridge']:getAllItems()                         -- Get all available items
 
 -- Metadata
 exports['dg-bridge']:getMetadata(src, key)       -- Get player metadata
 exports['dg-bridge']:setMetadata(src, key, val)  -- Set player metadata
 
--- Teleport
+-- Teleport & Vehicles
 exports['dg-bridge']:teleportPlayer(src, coords) -- Teleport player
+exports['dg-bridge']:giveVehicleKeys(src, plate) -- Give vehicle keys ✨NEW
 ```
 
 ## Events
@@ -92,6 +98,28 @@ RegisterCommand('givereward', function(source, args)
     exports['dg-bridge']:addMoney(source, 'cash', 5000)
     exports['dg-bridge']:giveItem(source, 'bread', 5)
     exports['dg-bridge']:notifyPlayer(source, 'You received a reward!', 'success')
+end)
+
+-- Server-side: Set player job (NEW)
+RegisterCommand('makecop', function(source, args)
+    local success = exports['dg-bridge']:setPlayerJob(source, 'police', 3)
+    if success then
+        exports['dg-bridge']:notifyPlayer(source, 'You are now a police officer!', 'success')
+    end
+end)
+
+-- Server-side: Revive player (NEW)
+RegisterCommand('reviveme', function(source, args)
+    exports['dg-bridge']:revivePlayer(source)
+    exports['dg-bridge']:notifyPlayer(source, 'You have been revived!', 'success')
+end)
+
+-- Server-side: Get all jobs (NEW)
+RegisterCommand('listjobs', function(source, args)
+    local jobs = exports['dg-bridge']:getAllJobs()
+    for jobName, jobData in pairs(jobs) do
+        print(jobName .. ' - ' .. jobData.label)
+    end
 end)
 
 -- Server-side: Teleport player

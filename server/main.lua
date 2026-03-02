@@ -507,4 +507,145 @@ function getAllItems()
     return items
 end
 
+-- Export: Set player job and grade
+function setPlayerJob(src, jobName, grade)
+    grade = tonumber(grade) or 0
+    
+    if frameworkName == 'qbcore' and Framework and Framework.Functions then
+        local Player = Framework.Functions.GetPlayer(src)
+        if Player and Player.Functions then
+            Player.Functions.SetJob(jobName, grade)
+            return true
+        end
+    elseif frameworkName == 'esx' and Framework then
+        local xPlayer = Framework.GetPlayerFromId(src)
+        if xPlayer then
+            xPlayer.setJob(jobName, grade)
+            return true
+        end
+    end
+    return false
+end
+
+-- Export: Get all available jobs from framework
+function getAllJobs()
+    local jobs = {}
+    
+    if frameworkName == 'qbcore' and Framework and Framework.Shared and Framework.Shared.Jobs then
+        for jobName, jobData in pairs(Framework.Shared.Jobs) do
+            jobs[jobName] = {
+                label = jobData.label or jobName,
+                grades = jobData.grades or {},
+                type = jobData.type or 'none',
+                defaultDuty = jobData.defaultDuty or false
+            }
+        end
+    elseif frameworkName == 'esx' and Framework and Framework.Jobs then
+        for jobName, jobData in pairs(Framework.Jobs) do
+            jobs[jobName] = {
+                label = jobData.label or jobName,
+                grades = {}
+            }
+            -- ESX grades structure
+            if jobData.grades then
+                for _, gradeData in pairs(jobData.grades) do
+                    jobs[jobName].grades[gradeData.grade] = {
+                        name = gradeData.name or 'Unknown',
+                        label = gradeData.label or gradeData.name or 'Unknown',
+                        salary = gradeData.salary or 0
+                    }
+                end
+            end
+        end
+    end
+    
+    return jobs
+end
+
+-- Export: Revive player (framework-compatible)
+function revivePlayer(src)
+    -- Trigger client-side revive
+    TriggerClientEvent('dg-bridge:revive', src)
+    
+    -- Framework-specific server-side handling
+    if frameworkName == 'qbcore' and Framework and Framework.Functions then
+        local Player = Framework.Functions.GetPlayer(src)
+        if Player and Player.Functions then
+            -- Reset metadata if needed
+            Player.Functions.SetMetaData("isdead", false)
+            Player.Functions.SetMetaData("inlaststand", false)
+        end
+    elseif frameworkName == 'esx' and Framework then
+        local xPlayer = Framework.GetPlayerFromId(src)
+        if xPlayer then
+            -- ESX revive handling (if custom ambulance)
+            TriggerClientEvent('esx_ambulancejob:revive', src)
+        end
+    end
+    
+    return true
+end
+
+-- Export: Give vehicle keys to player
+function giveVehicleKeys(src, plate)
+    if not plate or plate == '' then return false end
+    
+    -- Try multiple vehicle key systems
+    if GetResourceState('qb-vehiclekeys') == 'started' then
+        TriggerClientEvent('vehiclekeys:client:SetOwner', src, plate)
+        TriggerEvent('qb-vehiclekeys:server:AcquireVehicleKeys', src, plate)
+        return true
+    elseif GetResourceState('wasabi_carlock') == 'started' then
+        exports.wasabi_carlock:GiveKey(src, plate)
+        return true
+    elseif GetResourceState('cd_garage') == 'started' then
+        TriggerClientEvent('cd_garage:AddKeys', src, plate)
+        return true
+    elseif GetResourceState('qs-vehiclekeys') == 'started' then
+        exports['qs-vehiclekeys']:GiveKeys(src, plate)
+        return true
+    end
+    
+    -- Fallback: trigger generic key event
+    TriggerClientEvent('dg-bridge:vehicleKeys', src, plate)
+    return true
+end
+
+-- Export: Get player's framework-specific identifier
+function getPlayerIdentifier(src, format)
+    format = format or 'auto'
+    
+    if format == 'auto' then
+        if frameworkName == 'qbcore' then
+            format = 'citizenid'
+        elseif frameworkName == 'esx' then
+            format = 'identifier'
+        else
+            format = 'license'
+        end
+    end
+    
+    if format == 'citizenid' and frameworkName == 'qbcore' and Framework and Framework.Functions then
+        local Player = Framework.Functions.GetPlayer(src)
+        if Player and Player.PlayerData then
+            return Player.PlayerData.citizenid
+        end
+    elseif format == 'identifier' and frameworkName == 'esx' and Framework then
+        local xPlayer = Framework.GetPlayerFromId(src)
+        if xPlayer then
+            return xPlayer.identifier
+        end
+    end
+    
+    -- Fallback to license
+    return getLicense(src)
+end
+
+-- Server event: Give vehicle keys (triggered from client)
+RegisterServerEvent('dg-bridge:giveVehicleKeys')
+AddEventHandler('dg-bridge:giveVehicleKeys', function(plate)
+    local src = source
+    giveVehicleKeys(src, plate)
+end)
+
 print('^2[DG-Bridge] Server initialized^0')

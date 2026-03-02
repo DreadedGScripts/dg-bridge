@@ -49,7 +49,12 @@ server_exports {
     'getMetadata',
     'setMetadata',
     'getPlayerCoords',
-    'teleportPlayer'
+    'teleportPlayer',
+    'setPlayerJob',
+    'getAllJobs',
+    'revivePlayer',
+    'giveVehicleKeys',
+    'getPlayerIdentifier'
 }
 
 client_exports {

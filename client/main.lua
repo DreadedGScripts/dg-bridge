@@ -197,4 +197,48 @@ function hasItem(itemName)
     return false, 0
 end
 
+-- Client event: Revive player
+RegisterNetEvent('dg-bridge:revive')
+AddEventHandler('dg-bridge:revive', function()
+    local ped = PlayerPedId()
+    
+    -- Try framework-specific revive events first
+    if frameworkName == 'qbcore' then
+        TriggerEvent('hospital:client:Revive')
+    elseif frameworkName == 'esx' then
+        TriggerEvent('esx_ambulancejob:revive')
+    end
+    
+    -- Universal fallback using natives
+    if IsPedDeadOrDying(ped, 1) then
+        local coords = GetEntityCoords(ped)
+        NetworkResurrectLocalPlayer(coords.x, coords.y, coords.z, GetEntityHeading(ped), true, false)
+        SetEntityInvincible(ped, false)
+        ClearPedTasksImmediately(ped)
+    end
+    
+    -- Set health and armor
+    SetEntityHealth(ped, GetEntityMaxHealth(ped))
+    SetPedArmour(ped, 100)
+    ClearPedBloodDamage(ped)
+end)
+
+-- Client event: Teleport player
+RegisterNetEvent('dg-bridge:teleport')
+AddEventHandler('dg-bridge:teleport', function(coords)
+    local ped = PlayerPedId()
+    if type(coords) == 'table' then
+        SetEntityCoords(ped, coords.x or coords[1], coords.y or coords[2], coords.z or coords[3], false, false, false, false)
+    elseif type(coords) == 'vector3' then
+        SetEntityCoords(ped, coords.x, coords.y, coords.z, false, false, false, false)
+    end
+end)
+
+-- Client event: Vehicle keys received
+RegisterNetEvent('dg-bridge:vehicleKeys')
+AddEventHandler('dg-bridge:vehicleKeys', function(plate)
+    -- Placeholder for custom key systems
+    -- Can be expanded based on server's vehicle key script
+end)
+
 print('^2[DG-Bridge] Client initialized^0')
