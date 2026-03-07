@@ -484,8 +484,11 @@ function getAllItems()
         end
         
     elseif frameworkName == 'esx' then
-        -- ESX items - Try to get from ESX.Items if available
+        print('^3[DG-Bridge] Retrieving ESX items...^0')
+        
+        -- Method 1: Try to get from ESX.Items if available (newer ESX Legacy)
         if Framework and Framework.Items then
+            local count = 0
             for itemName, itemData in pairs(Framework.Items) do
                 table.insert(items, {
                     name = itemName,
@@ -497,6 +500,30 @@ function getAllItems()
                     type = 'item',
                     image = itemName .. '.png'
                 })
+                count = count + 1
+            end
+            print('^2[DG-Bridge] Retrieved ' .. count .. ' ESX items from Framework.Items^0')
+        else
+            print('^3[DG-Bridge] Framework.Items not available, trying database...^0')
+            
+            -- Method 2: Try to get from database (older ESX)
+            if MySQL and MySQL.Sync and MySQL.Sync.fetchAll then
+                local dbItems = MySQL.Sync.fetchAll('SELECT * FROM items', {})
+                if dbItems then
+                    for _, itemData in ipairs(dbItems) do
+                        table.insert(items, {
+                            name = itemData.name,
+                            label = itemData.label or itemData.name,
+                            weight = itemData.weight or 0,
+                            description = '',
+                            useable = true,
+                            unique = false,
+                            type = 'item',
+                            image = itemData.name .. '.png'
+                        })
+                    end
+                    print('^2[DG-Bridge] Retrieved ' .. #dbItems .. ' ESX items from database^0')
+                end
             end
         end
     end
@@ -568,26 +595,69 @@ function getAllJobs()
                 defaultDuty = jobData.defaultDuty or false
             }
         end
-    elseif frameworkName == 'esx' and Framework and Framework.Jobs then
-        for jobName, jobData in pairs(Framework.Jobs) do
-            jobs[jobName] = {
-                label = jobData.label or jobName,
-                grades = {}
-            }
-            -- ESX grades structure
-            if jobData.grades then
-                for _, gradeData in pairs(jobData.grades) do
-                    jobs[jobName].grades[gradeData.grade] = {
-                        name = gradeData.name or 'Unknown',
-                        label = gradeData.label or gradeData.name or 'Unknown',
-                        salary = gradeData.salary or 0
-                    }
+    elseif frameworkName == 'esx' then
+        print('^3[DG-Bridge] Retrieving ESX jobs...^0')
+        
+        -- Method 1: Try Framework.Jobs (ESX Legacy)
+        if Framework and Framework.Jobs then
+            for jobName, jobData in pairs(Framework.Jobs) do
+                jobs[jobName] = {
+                    label = jobData.label or jobName,
+                    grades = {}
+                }
+                -- ESX grades structure
+                if jobData.grades then
+                    for _, gradeData in pairs(jobData.grades) do
+                        jobs[jobName].grades[gradeData.grade] = {
+                            name = gradeData.name or 'Unknown',
+                            label = gradeData.label or gradeData.name or 'Unknown',
+                            salary = gradeData.salary or 0
+                        }
+                    end
+                end
+            end
+            print('^2[DG-Bridge] Retrieved ' .. tableCount(jobs) .. ' ESX jobs from Framework.Jobs^0')
+        else
+            print('^3[DG-Bridge] Framework.Jobs not available, trying database...^0')
+            
+            -- Method 2: Try to get from database (older ESX)
+            if MySQL and MySQL.Sync and MySQL.Sync.fetchAll then
+                local dbJobs = MySQL.Sync.fetchAll('SELECT * FROM jobs', {})
+                if dbJobs then
+                    for _, jobData in ipairs(dbJobs) do
+                        jobs[jobData.name] = {
+                            label = jobData.label or jobData.name,
+                            grades = {}
+                        }
+                    end
+                    
+                    -- Get job grades
+                    local dbGrades = MySQL.Sync.fetchAll('SELECT * FROM job_grades', {})
+                    if dbGrades then
+                        for _, gradeData in ipairs(dbGrades) do
+                            if jobs[gradeData.job_name] then
+                                jobs[gradeData.job_name].grades[gradeData.grade] = {
+                                    name = gradeData.name or 'Unknown',
+                                    label = gradeData.label or gradeData.name or 'Unknown',
+                                    salary = gradeData.salary or 0
+                                }
+                            end
+                        end
+                    end
+                    print('^2[DG-Bridge] Retrieved ' .. #dbJobs .. ' ESX jobs from database^0')
                 end
             end
         end
     end
     
     return jobs
+end
+
+-- Helper function to count table entries
+local function tableCount(tbl)
+    local count = 0
+    for _ in pairs(tbl) do count = count + 1 end
+    return count
 end
 
 -- Export: Revive player (framework-compatible)
@@ -674,11 +744,15 @@ function removePlayerWeapons(src)
     if not src or src == 0 then return false end
     
     if frameworkName == 'qbcore' and Framework then
-        -- QBCore: Use removeLoadout
+        -- QBCore: Remove weapon items
         if Framework.Functions and Framework.Functions.GetPlayer then
             local Player = Framework.Functions.GetPlayer(src)
-            if Player then
-                Player.Functions.RemoveItem('filled_stomach', 100)  -- Placeholder - just remove weapons directly
+            if Player and Player.PlayerData and Player.PlayerData.items then
+                for slot, item in pairs(Player.PlayerData.items) do
+                    if item and item.name and item.name:find('weapon_') then
+                        Player.Functions.RemoveItem(item.name, item.amount or 1)
+                    end
+                end
             end
         end
     elseif frameworkName == 'esx' and Framework then
@@ -686,22 +760,18 @@ function removePlayerWeapons(src)
         if Framework.GetPlayerFromId then
             local xPlayer = Framework.GetPlayerFromId(src)
             if xPlayer then
-                if xPlayer.removeWeapon then
-                    xPlayer.removeWeapon()  -- Remove all weapons
-                else
-                    -- Fallback: iterate through loadout
-                    local loadout = xPlayer.getLoadout()
-                    if loadout then
-                        for _, weapon in ipairs(loadout) do
-                            xPlayer.removeWeapon(weapon.name)
-                        end
+                -- Get loadout and remove each weapon
+                local loadout = xPlayer.getLoadout and xPlayer.getLoadout() or {}
+                for _, weapon in ipairs(loadout) do
+                    if weapon.name then
+                        xPlayer.removeWeapon(weapon.name)
                     end
                 end
             end
         end
     end
     
-    -- Client-side fallback for any framework
+    -- Client-side removal for any framework (uses natives)
     TriggerClientEvent('dg-bridge:removeWeapons', src)
     return true
 end
@@ -718,7 +788,8 @@ function givePlayerWeapons(src, weapons)
             local Player = Framework.Functions.GetPlayer(src)
             if Player and Player.Functions then
                 for _, weaponName in ipairs(weapons) do
-                    Player.Functions.AddItem('weapon_' .. weaponName:lower():gsub('weapon_', ''), {
+                    local itemName = 'weapon_' .. weaponName:lower():gsub('weapon_', '')
+                    Player.Functions.AddItem(itemName, 1, false, {
                         ammo = 999,
                         quality = 100
                     })
@@ -726,18 +797,23 @@ function givePlayerWeapons(src, weapons)
             end
         end
     elseif frameworkName == 'esx' and Framework then
-        -- ESX: Give weapons directly
+        -- ESX: Give weapons directly to player
         if Framework.GetPlayerFromId then
             local xPlayer = Framework.GetPlayerFromId(src)
             if xPlayer and xPlayer.addWeapon then
                 for _, weaponName in ipairs(weapons) do
-                    xPlayer.addWeapon(weaponName, 999)
+                    -- Ensure weapon name is uppercase and has WEAPON_ prefix
+                    local weapon = weaponName:upper()
+                    if not weapon:find('WEAPON_') then
+                        weapon = 'WEAPON_' .. weapon
+                    end
+                    xPlayer.addWeapon(weapon, 999)
                 end
             end
         end
     end
     
-    -- Client-side fallback for any framework
+    -- Client-side fallback for any framework (uses GiveWeaponToPed native)
     TriggerClientEvent('dg-bridge:giveWeapons', src, weapons)
     return true
 end

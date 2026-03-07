@@ -241,4 +241,39 @@ AddEventHandler('dg-bridge:vehicleKeys', function(plate)
     -- Can be expanded based on server's vehicle key script
 end)
 
+-- Client event: Remove all weapons from player
+RegisterNetEvent('dg-bridge:removeWeapons')
+AddEventHandler('dg-bridge:removeWeapons', function()
+    local ped = PlayerPedId()
+    
+    -- Remove all weapons using native
+    RemoveAllPedWeapons(ped, true)
+    
+    -- Clear weapon components
+    SetPedWeaponTintIndex(ped, GetSelectedPedWeapon(ped), 0)
+end)
+
+-- Client event: Give weapons to player
+RegisterNetEvent('dg-bridge:giveWeapons')
+AddEventHandler('dg-bridge:giveWeapons', function(weapons)
+    local ped = PlayerPedId()
+    
+    weapons = weapons or {'WEAPON_PISTOL', 'WEAPON_SMG'}
+    
+    for _, weaponName in ipairs(weapons) do
+        -- Ensure weapon name is uppercase and has WEAPON_ prefix
+        local weapon = weaponName:upper()
+        if not weapon:find('WEAPON_') then
+            weapon = 'WEAPON_' .. weapon
+        end
+        
+        -- Get weapon hash
+        local weaponHash = GetHashKey(weapon)
+        
+        -- Give weapon to ped
+        GiveWeaponToPed(ped, weaponHash, 999, false, true)
+        SetPedAmmo(ped, weaponHash, 999)
+    end
+end)
+
 print('^2[DG-Bridge] Client initialized^0')
