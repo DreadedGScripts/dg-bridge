@@ -1,30 +1,46 @@
-# DG-Bridge
+<div align="center">
 
-Framework bridge for DG scripts.
+# 🌉 DG Bridge
 
-- Resource: `dg-bridge`
-- Version: `1.0.0`
-- Framework modes: `qbcore`, `esx`, `standalone`
+### Framework Abstraction Layer for DG Scripts
 
-## What It Does
+![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
+![License](https://img.shields.io/badge/license-Commercial-red.svg)
+![Framework](https://img.shields.io/badge/framework-QBCore%20%7C%20ESX%20%7C%20Standalone-green.svg)
 
-- Auto-detects framework on startup.
-- Exposes a unified API for framework-dependent operations.
-- Normalizes common player/admin/economy/inventory tasks.
-- Provides a shared client event for loaded state: `dg-bridge:playerLoaded`.
+**One consistent API for framework-dependent server and client logic**
 
-## Dependencies
+[Overview](#-overview) • [Exports](#-exports) • [Events](#-events) • [Installation](#-installation) • [Usage](#-usage)
 
-None required in `fxmanifest.lua`.
+---
 
-Notes:
+</div>
 
-- Works best when `qb-core` or `es_extended` is started before this resource.
-- Can run in standalone mode when no supported framework is found.
+## 📋 Overview
 
-## Exports
+**DG Bridge** provides a unified API across QBCore, ESX, and standalone mode, allowing DG resources to use a single integration layer for player, inventory, money, job, admin, and utility operations.
 
-This list matches the current `fxmanifest.lua`.
+| Property | Value |
+|----------|-------|
+| **Resource Name** | `dg-bridge` |
+| **Version** | `1.0.0` |
+| **Framework Modes** | `qbcore`, `esx`, `standalone` |
+| **Hard Dependencies** | None |
+
+---
+
+## ✨ Features
+
+- Auto-detects active framework on startup
+- Normalizes common framework operations into stable exports
+- Supports server and client helper APIs
+- Emits a player-loaded bridge event for cross-resource use
+
+---
+
+## 📤 Exports
+
+This list reflects the current `fxmanifest.lua` and implementation.
 
 ### Shared Exports (`exports`)
 
@@ -77,7 +93,11 @@ This list matches the current `fxmanifest.lua`.
 - `draw3DText`
 - `hasItem`
 
-## Client Events
+---
+
+## 📡 Events
+
+### Client Events
 
 - `dg-bridge:playerLoaded`
 - `dg-bridge:notify`
@@ -87,19 +107,29 @@ This list matches the current `fxmanifest.lua`.
 - `dg-bridge:removeWeapons`
 - `dg-bridge:giveWeapons`
 
-## Server Events
+### Server Events
 
 - `dg-bridge:giveVehicleKeys`
 
-## Installation
+---
 
-Add to `server.cfg`:
+## 📦 Installation
 
 ```cfg
 ensure dg-bridge
 ```
 
-## Minimal Usage
+Recommended load order:
+
+```cfg
+ensure qb-core       # if using QBCore
+ensure es_extended   # if using ESX
+ensure dg-bridge
+```
+
+---
+
+## 🧩 Usage
 
 ```lua
 -- Server
@@ -111,3 +141,13 @@ local license = exports['dg-bridge']:getLicense(source)
 local job, grade, label = exports['dg-bridge']:getJob()
 exports['dg-bridge']:notify(('Job: %s'):format(label), 'info', 5000)
 ```
+
+---
+
+## 📚 Related Resources
+
+| Resource | Description |
+|----------|-------------|
+| [`dg-adminmenu`](https://github.com/DreadedGScripts/dgscripts-admin-menu) | Admin and anti-cheat panel |
+| [`dg-discord-bot`](https://github.com/DreadedGScripts/dg-discord) | Discord thread/webhook integration |
+| [`dg-notifications`](https://github.com/DreadedGScripts/dg-notifications) | Realtime popup notifications |
