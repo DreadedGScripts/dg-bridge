@@ -54,7 +54,28 @@ server_exports {
     'getAllJobs',
     'revivePlayer',
     'giveVehicleKeys',
-    'getPlayerIdentifier'
+    'getPlayerIdentifier',
+    -- Commonly Used Scripts Integration
+    'getHousingResource',
+    'getVehicleKeysResource',
+    'getGarageResource',
+    'getCustomShopResource',
+    'getShopResource',
+    'getJobResource',
+    'getBankingResource',
+    'getPhoneResource',
+    'getTargetResource',
+    'getRobberyResource',
+    'getDrugResource',
+    'getTableResource',
+    'removeVehicleKeys',
+    'storeVehicleInGarage',
+    'getPlayerHouses',
+    'addHouseKey',
+    'getPlayerBankBalance',
+    'sendPhoneMessage',
+    'getShopItems',
+    'addTargetEntity'
 }
 
 client_exports {
@@ -67,5 +88,19 @@ client_exports {
     'getGang',
     'getCharName',
     'draw3DText',
-    'hasItem'
+    'hasItem',
+    -- Commonly Used Scripts Integration (Client)
+    'getNotifyResource',
+    'getTargetSystemResource',
+    'notifyClient',
+    'addDrawTextTarget',
+    'hasClientItem',
+    'getItemCount',
+    'playAnimation',
+    'stopAnimation',
+    'teleportClient',
+    'drawBlip',
+    'getPlayerVehicle',
+    'getVehicleClass',
+    'openVehicleDoorsNearby'
 }

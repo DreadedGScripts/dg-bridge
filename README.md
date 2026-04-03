@@ -144,6 +144,118 @@ exports['dg-bridge']:notify(('Job: %s'):format(label), 'info', 5000)
 
 ---
 
+## 🌟 Commonly Used Scripts Integration
+
+**NEW!** DG Bridge now includes comprehensive support for 60+ commonly used FiveM RP scripts across 12+ categories!
+
+### What's Included
+
+- **60+ Script Variants** supported out of the box
+- **Auto-Detection System** - Automatically finds which scripts you have running
+- **Unified Wrapper Functions** - Same API regardless of which script variant you use
+- **Server & Client Functions** - Complete client-side utilities for animations, notifications, player data, and more
+
+### Integrated Categories
+
+🏠 Housing • 🚗 Vehicles • 🏪 Shops • 👔 Jobs • 🏦 Banking • 📱 Phone • 🎯 Targeting • 🔪 Robbery • 💊 Drugs • 🎒 Inventory
+
+### Example Usage
+
+```lua
+-- Server: Give player vehicle keys (auto-detects which keys script you use)
+exports['dg-bridge']:giveVehicleKeys('ABC1234', 'John Doe')
+
+-- Server: Add house key
+exports['dg-bridge']:addHouseKey(citizenid, houseId)
+
+-- Client: Show notification (auto-detects your notify system)
+exports['dg-bridge']:notifyClient('success', 'Success!', 'Task completed', 5000)
+
+-- Client: Get player data
+local playerData = exports['dg-bridge']:getPlayerData()
+print('Job: ' .. playerData.job)
+```
+
+### Documentation
+
+- 📖 **[COMMONLY_USED_SCRIPTS_GUIDE.md](./COMMONLY_USED_SCRIPTS_GUIDE.md)** - Complete reference for all 20 new functions
+- 💡 **[BRIDGE_USAGE_EXAMPLES.md](./BRIDGE_USAGE_EXAMPLES.md)** - Real-world code examples and workflows
+
+### Supported Scripts
+
+| Category | Examples |
+|----------|----------|
+| Housing | qb-properties, ps-housing, renewed-apartments, and 3+ others |
+| Vehicle Keys | qb-vehiclekeys, wasabi_carlock, ox_target, and 3+ others |
+| Garages | qb-garage, ps-garage, jg-garages, and 3+ others |
+| Shops | qb-shops, ps-stores, renewed-shops, and 2+ others |
+| Jobs | qb-policejob, qb-ambulancejob, qb-mechanic, and 4+ others |
+| Banking | qb-banking, ps-banking, renewed-banking, and 2+ others |
+| Phone | qb-phone, mythic_phone, npwd, gksphone, and 3+ others |
+| And 5+ more categories... | See [COMMONLY_USED_SCRIPTS_GUIDE.md](./COMMONLY_USED_SCRIPTS_GUIDE.md) for complete list |
+
+### New Server Exports
+
+```lua
+-- Detection Functions (check what's running)
+getHousingResource()
+getVehicleKeysResource()
+getGarageResource()
+getCustomShopResource()
+getShopResource()
+getJobResource()
+getBankingResource()
+getPhoneResource()
+getTargetResource()
+getRobberyResource()
+getDrugResource()
+getTableResource()
+
+-- Wrapper Functions (unified API)
+giveVehicleKeys(plate, playerName)
+removeVehicleKeys(plate)
+storeVehicleInGarage(vehicle, source)
+getPlayerHouses(citizenid)
+addHouseKey(citizenid, house)
+getPlayerBankBalance(src)
+sendPhoneMessage(citizenid, phone, message, sender)
+getShopItems()
+addTargetEntity(entity, options)
+```
+
+### New Client Exports
+
+```lua
+-- Notification System
+notifyClient(type, title, message, duration)
+getNotifyResource()
+
+-- Player Data
+getPlayerData()
+
+-- Inventory
+hasClientItem(itemName)
+getItemCount(itemName)
+
+-- Animations & Visuals
+playAnimation(animDict, animName, flags)
+stopAnimation()
+draw3DText(coords, text)
+drawBlip(coords, sprite, color, scale, label)
+
+-- Utilities
+teleportClient(coords)
+getPlayerVehicle()
+getVehicleClass(vehicle)
+openVehicleDoorsNearby(distance)
+
+-- Targeting
+getTargetSystemResource()
+addDrawTextTarget(coords, message, distance)
+```
+
+---
+
 ## 📚 Related Resources
 
 | Resource | Description |
