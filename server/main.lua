@@ -4,6 +4,173 @@
 local frameworkName = nil
 local Framework = nil
 
+local function detectInventoryResource()
+    local candidates = {
+        'ox_inventory',
+        'qb-inventory',
+        'ps-inventory',
+        'lj-inventory',
+        'qs-inventory',
+        'codem-inventory'
+    }
+
+    for _, resourceName in ipairs(candidates) do
+        if GetResourceState(resourceName) == 'started' then
+            return resourceName
+        end
+    end
+
+    return nil
+end
+
+local function callInventoryExport(resourceName, exportName, ...)
+    if not resourceName or GetResourceState(resourceName) ~= 'started' then
+        return false, nil
+    end
+
+    local exportTable = exports[resourceName]
+    if not exportTable then
+        return false, nil
+    end
+
+    local exportFn = exportTable[exportName]
+    if type(exportFn) ~= 'function' then
+        return false, nil
+    end
+
+    local ok, result = pcall(exportFn, ...)
+    if not ok then
+        return false, nil
+    end
+
+    return true, result
+end
+
+local function normalizeInventoryList(rawInventory)
+    local normalized = {}
+    if type(rawInventory) ~= 'table' then
+        return normalized
+    end
+
+    for fallbackSlot, item in pairs(rawInventory) do
+        if type(item) == 'table' then
+            local itemName = tostring(item.name or item.item or '')
+            local count = tonumber(item.amount) or tonumber(item.count) or tonumber(item.qty) or tonumber(item.quantity) or 0
+
+            if itemName ~= '' and count > 0 then
+                table.insert(normalized, {
+                    name = itemName,
+                    label = tostring(item.label or itemName),
+                    amount = count,
+                    count = count,
+                    weight = tonumber(item.weight) or 0,
+                    slot = tonumber(item.slot) or tonumber(item.slotId) or tonumber(fallbackSlot) or 0,
+                    metadata = type(item.metadata) == 'table' and item.metadata or (type(item.info) == 'table' and item.info or {})
+                })
+            end
+        end
+    end
+
+    return normalized
+end
+
+local function tryGetInventoryFromAdapter(src)
+    local inventoryResource = detectInventoryResource()
+    if not inventoryResource then
+        return nil, nil
+    end
+
+    if inventoryResource == 'ox_inventory' then
+        local okItems, oxItems = callInventoryExport('ox_inventory', 'GetInventoryItems', src)
+        if okItems and type(oxItems) == 'table' then
+            return normalizeInventoryList(oxItems), inventoryResource
+        end
+
+        local okInv, oxInv = callInventoryExport('ox_inventory', 'GetInventory', src)
+        if okInv and type(oxInv) == 'table' then
+            local rawItems = type(oxInv.items) == 'table' and oxInv.items or oxInv
+            return normalizeInventoryList(rawItems), inventoryResource
+        end
+
+        return {}, inventoryResource
+    end
+
+    local okInv, inv = callInventoryExport(inventoryResource, 'GetInventory', src)
+    if okInv and type(inv) == 'table' then
+        local rawItems = type(inv.items) == 'table' and inv.items or inv
+        return normalizeInventoryList(rawItems), inventoryResource
+    end
+
+    local okPlayerInv, playerInv = callInventoryExport(inventoryResource, 'GetPlayerInventory', src)
+    if okPlayerInv and type(playerInv) == 'table' then
+        local rawItems = type(playerInv.items) == 'table' and playerInv.items or playerInv
+        return normalizeInventoryList(rawItems), inventoryResource
+    end
+
+    return {}, inventoryResource
+end
+
+local function tryGiveItemFromAdapter(src, item, amount, metadata)
+    local inventoryResource = detectInventoryResource()
+    if not inventoryResource then
+        return nil, nil
+    end
+
+    if inventoryResource == 'ox_inventory' then
+        local ok, result = callInventoryExport('ox_inventory', 'AddItem', src, item, amount, metadata)
+        if ok then
+            return result ~= false, inventoryResource
+        end
+        return false, inventoryResource
+    end
+
+    local attempts = {
+        { 'AddItem', src, item, amount, false, metadata },
+        { 'AddItem', src, item, amount, metadata },
+        { 'AddItem', src, item, amount }
+    }
+
+    for _, args in ipairs(attempts) do
+        local exportName = args[1]
+        local ok, result = callInventoryExport(inventoryResource, exportName, table.unpack(args, 2))
+        if ok then
+            return result ~= false, inventoryResource
+        end
+    end
+
+    return false, inventoryResource
+end
+
+local function tryRemoveItemFromAdapter(src, item, amount)
+    local inventoryResource = detectInventoryResource()
+    if not inventoryResource then
+        return nil, nil
+    end
+
+    if inventoryResource == 'ox_inventory' then
+        local ok, result = callInventoryExport('ox_inventory', 'RemoveItem', src, item, amount)
+        if ok then
+            return result ~= false, inventoryResource
+        end
+        return false, inventoryResource
+    end
+
+    local attempts = {
+        { 'RemoveItem', src, item, amount },
+        { 'RemoveItem', src, item, amount, false }
+    }
+
+    for _, args in ipairs(attempts) do
+        local exportName = args[1]
+        local ok, result = callInventoryExport(inventoryResource, exportName, table.unpack(args, 2))
+        if ok then
+            return result ~= false, inventoryResource
+        end
+    end
+
+    return false, inventoryResource
+end
+
 -- Auto-detect framework
 local function detectFramework()
     if GetResourceState('qb-core') == 'started' then
@@ -156,11 +323,24 @@ end
 function addMoney(src, moneyType, amount)
     moneyType = moneyType or 'cash'
     amount = tonumber(amount) or 0
-    
+
     if frameworkName == 'qbcore' and Framework and Framework.Functions then
         local Player = Framework.Functions.GetPlayer(src)
         if Player then
             Player.Functions.AddMoney(moneyType, amount)
+            TriggerEvent('dg-adminpanel:economyActivity', {
+                eventType = 'money_add',
+                actorId = tonumber(src) or 0,
+                actorName = GetPlayerName(src) or 'Unknown',
+                actorLicense = getLicense(src),
+                targetId = tonumber(src) or 0,
+                targetName = GetPlayerName(src) or 'Unknown',
+                targetLicense = getLicense(src),
+                moneyType = tostring(moneyType or 'cash'),
+                moneyAmount = tonumber(amount) or 0,
+                context = 'bridge_export',
+                details = { framework = frameworkName }
+            })
             return true
         end
     elseif frameworkName == 'esx' and Framework then
@@ -173,6 +353,19 @@ function addMoney(src, moneyType, amount)
             elseif moneyType == 'black_money' then
                 xPlayer.addAccountMoney('black_money', amount)
             end
+            TriggerEvent('dg-adminpanel:economyActivity', {
+                eventType = 'money_add',
+                actorId = tonumber(src) or 0,
+                actorName = GetPlayerName(src) or 'Unknown',
+                actorLicense = getLicense(src),
+                targetId = tonumber(src) or 0,
+                targetName = GetPlayerName(src) or 'Unknown',
+                targetLicense = getLicense(src),
+                moneyType = tostring(moneyType or 'cash'),
+                moneyAmount = tonumber(amount) or 0,
+                context = 'bridge_export',
+                details = { framework = frameworkName }
+            })
             return true
         end
     end
@@ -183,11 +376,24 @@ end
 function removeMoney(src, moneyType, amount)
     moneyType = moneyType or 'cash'
     amount = tonumber(amount) or 0
-    
+
     if frameworkName == 'qbcore' and Framework and Framework.Functions then
         local Player = Framework.Functions.GetPlayer(src)
         if Player then
             Player.Functions.RemoveMoney(moneyType, amount)
+            TriggerEvent('dg-adminpanel:economyActivity', {
+                eventType = 'money_remove',
+                actorId = tonumber(src) or 0,
+                actorName = GetPlayerName(src) or 'Unknown',
+                actorLicense = getLicense(src),
+                targetId = tonumber(src) or 0,
+                targetName = GetPlayerName(src) or 'Unknown',
+                targetLicense = getLicense(src),
+                moneyType = tostring(moneyType or 'cash'),
+                moneyAmount = tonumber(amount) or 0,
+                context = 'bridge_export',
+                details = { framework = frameworkName }
+            })
             return true
         end
     elseif frameworkName == 'esx' and Framework then
@@ -200,6 +406,19 @@ function removeMoney(src, moneyType, amount)
             elseif moneyType == 'black_money' then
                 xPlayer.removeAccountMoney('black_money', amount)
             end
+            TriggerEvent('dg-adminpanel:economyActivity', {
+                eventType = 'money_remove',
+                actorId = tonumber(src) or 0,
+                actorName = GetPlayerName(src) or 'Unknown',
+                actorLicense = getLicense(src),
+                targetId = tonumber(src) or 0,
+                targetName = GetPlayerName(src) or 'Unknown',
+                targetLicense = getLicense(src),
+                moneyType = tostring(moneyType or 'cash'),
+                moneyAmount = tonumber(amount) or 0,
+                context = 'bridge_export',
+                details = { framework = frameworkName }
+            })
             return true
         end
     end
@@ -209,17 +428,61 @@ end
 -- Export: Give item to player
 function giveItem(src, item, amount, metadata)
     amount = tonumber(amount) or 1
-    
+
+    local adapterResult, inventoryResource = tryGiveItemFromAdapter(src, item, amount, metadata)
+    if adapterResult == true then
+        TriggerEvent('dg-adminpanel:economyActivity', {
+            eventType = 'item_add',
+            actorId = tonumber(src) or 0,
+            actorName = GetPlayerName(src) or 'Unknown',
+            actorLicense = getLicense(src),
+            targetId = tonumber(src) or 0,
+            targetName = GetPlayerName(src) or 'Unknown',
+            targetLicense = getLicense(src),
+            itemName = tostring(item or 'unknown'),
+            itemAmount = tonumber(amount) or 1,
+            context = 'bridge_export',
+            details = { framework = frameworkName, inventory = inventoryResource }
+        })
+        return true
+    end
+
     if frameworkName == 'qbcore' and Framework and Framework.Functions then
         local Player = Framework.Functions.GetPlayer(src)
         if Player then
             Player.Functions.AddItem(item, amount, false, metadata)
+            TriggerEvent('dg-adminpanel:economyActivity', {
+                eventType = 'item_add',
+                actorId = tonumber(src) or 0,
+                actorName = GetPlayerName(src) or 'Unknown',
+                actorLicense = getLicense(src),
+                targetId = tonumber(src) or 0,
+                targetName = GetPlayerName(src) or 'Unknown',
+                targetLicense = getLicense(src),
+                itemName = tostring(item or 'unknown'),
+                itemAmount = tonumber(amount) or 1,
+                context = 'bridge_export',
+                details = { framework = frameworkName, inventory = 'framework' }
+            })
             return true
         end
     elseif frameworkName == 'esx' and Framework then
         local xPlayer = Framework.GetPlayerFromId(src)
         if xPlayer then
             xPlayer.addInventoryItem(item, amount)
+            TriggerEvent('dg-adminpanel:economyActivity', {
+                eventType = 'item_add',
+                actorId = tonumber(src) or 0,
+                actorName = GetPlayerName(src) or 'Unknown',
+                actorLicense = getLicense(src),
+                targetId = tonumber(src) or 0,
+                targetName = GetPlayerName(src) or 'Unknown',
+                targetLicense = getLicense(src),
+                itemName = tostring(item or 'unknown'),
+                itemAmount = tonumber(amount) or 1,
+                context = 'bridge_export',
+                details = { framework = frameworkName, inventory = 'framework' }
+            })
             return true
         end
     end
@@ -229,17 +492,61 @@ end
 -- Export: Remove item from player
 function removeItem(src, item, amount)
     amount = tonumber(amount) or 1
-    
+
+    local adapterResult, inventoryResource = tryRemoveItemFromAdapter(src, item, amount)
+    if adapterResult == true then
+        TriggerEvent('dg-adminpanel:economyActivity', {
+            eventType = 'item_remove',
+            actorId = tonumber(src) or 0,
+            actorName = GetPlayerName(src) or 'Unknown',
+            actorLicense = getLicense(src),
+            targetId = tonumber(src) or 0,
+            targetName = GetPlayerName(src) or 'Unknown',
+            targetLicense = getLicense(src),
+            itemName = tostring(item or 'unknown'),
+            itemAmount = tonumber(amount) or 1,
+            context = 'bridge_export',
+            details = { framework = frameworkName, inventory = inventoryResource }
+        })
+        return true
+    end
+
     if frameworkName == 'qbcore' and Framework and Framework.Functions then
         local Player = Framework.Functions.GetPlayer(src)
         if Player then
             Player.Functions.RemoveItem(item, amount)
+            TriggerEvent('dg-adminpanel:economyActivity', {
+                eventType = 'item_remove',
+                actorId = tonumber(src) or 0,
+                actorName = GetPlayerName(src) or 'Unknown',
+                actorLicense = getLicense(src),
+                targetId = tonumber(src) or 0,
+                targetName = GetPlayerName(src) or 'Unknown',
+                targetLicense = getLicense(src),
+                itemName = tostring(item or 'unknown'),
+                itemAmount = tonumber(amount) or 1,
+                context = 'bridge_export',
+                details = { framework = frameworkName, inventory = 'framework' }
+            })
             return true
         end
     elseif frameworkName == 'esx' and Framework then
         local xPlayer = Framework.GetPlayerFromId(src)
         if xPlayer then
             xPlayer.removeInventoryItem(item, amount)
+            TriggerEvent('dg-adminpanel:economyActivity', {
+                eventType = 'item_remove',
+                actorId = tonumber(src) or 0,
+                actorName = GetPlayerName(src) or 'Unknown',
+                actorLicense = getLicense(src),
+                targetId = tonumber(src) or 0,
+                targetName = GetPlayerName(src) or 'Unknown',
+                targetLicense = getLicense(src),
+                itemName = tostring(item or 'unknown'),
+                itemAmount = tonumber(amount) or 1,
+                context = 'bridge_export',
+                details = { framework = frameworkName, inventory = 'framework' }
+            })
             return true
         end
     end
@@ -248,6 +555,12 @@ end
 
 -- Export: Get player inventory
 function getInventory(src)
+    local adapterInventory, inventoryResource = tryGetInventoryFromAdapter(src)
+    if adapterInventory ~= nil then
+        print('^3[DG-Bridge] Inventory adapter (' .. tostring(inventoryResource) .. ') for player ' .. tostring(src) .. ': ' .. tostring(#adapterInventory) .. ' items^0')
+        return adapterInventory
+    end
+
     if frameworkName == 'qbcore' and Framework and Framework.Functions then
         local Player = Framework.Functions.GetPlayer(src)
         if Player and Player.PlayerData and Player.PlayerData.items then
@@ -408,6 +721,33 @@ end
 -- Export: Get all available items from framework
 function getAllItems()
     local items = {}
+
+    local function hasItem(itemName)
+        for _, existing in ipairs(items) do
+            if existing.name == itemName then
+                return true
+            end
+        end
+        return false
+    end
+
+    local function addItemDefinition(itemName, itemData)
+        if not itemName or itemName == '' or hasItem(itemName) then
+            return
+        end
+
+        itemData = type(itemData) == 'table' and itemData or {}
+        table.insert(items, {
+            name = itemName,
+            label = itemData.label or itemName,
+            weight = itemData.weight or 0,
+            description = itemData.description or itemData.info or '',
+            useable = itemData.useable or itemData.usable or itemData.shouldClose or (itemData.consume ~= nil) or false,
+            unique = itemData.unique or (itemData.stack == false) or false,
+            type = itemData.type or 'item',
+            image = itemData.image or (itemName .. '.png')
+        })
+    end
     
     if frameworkName == 'qbcore' then
         -- Try multiple methods to get QBCore items
@@ -466,16 +806,7 @@ function getAllItems()
         if qbItems then
             local count = 0
             for itemName, itemData in pairs(qbItems) do
-                table.insert(items, {
-                    name = itemName,
-                    label = itemData.label or itemName,
-                    weight = itemData.weight or 0,
-                    description = itemData.description or itemData.info or '',
-                    useable = itemData.useable or itemData.shouldClose or false,
-                    unique = itemData.unique or false,
-                    type = itemData.type or 'item',
-                    image = itemData.image or (itemName .. '.png')
-                })
+                addItemDefinition(itemName, itemData)
                 count = count + 1
             end
             print('^2[DG-Bridge] Processed ' .. count .. ' QBCore items^0')
@@ -490,16 +821,7 @@ function getAllItems()
         if Framework and Framework.Items then
             local count = 0
             for itemName, itemData in pairs(Framework.Items) do
-                table.insert(items, {
-                    name = itemName,
-                    label = itemData.label or itemName,
-                    weight = itemData.weight or 0,
-                    description = itemData.description or '',
-                    useable = true,
-                    unique = itemData.unique or false,
-                    type = 'item',
-                    image = itemName .. '.png'
-                })
+                addItemDefinition(itemName, itemData)
                 count = count + 1
             end
             print('^2[DG-Bridge] Retrieved ' .. count .. ' ESX items from Framework.Items^0')
@@ -511,16 +833,7 @@ function getAllItems()
                 local dbItems = MySQL.Sync.fetchAll('SELECT * FROM items', {})
                 if dbItems then
                     for _, itemData in ipairs(dbItems) do
-                        table.insert(items, {
-                            name = itemData.name,
-                            label = itemData.label or itemData.name,
-                            weight = itemData.weight or 0,
-                            description = '',
-                            useable = true,
-                            unique = false,
-                            type = 'item',
-                            image = itemData.name .. '.png'
-                        })
+                        addItemDefinition(itemData.name, itemData)
                     end
                     print('^2[DG-Bridge] Retrieved ' .. #dbItems .. ' ESX items from database^0')
                 end
@@ -535,24 +848,35 @@ function getAllItems()
         end)
         if success and oxItems then
             for itemName, itemData in pairs(oxItems) do
-                local exists = false
-                for _, existing in ipairs(items) do
-                    if existing.name == itemName then
-                        exists = true
-                        break
-                    end
+                addItemDefinition(itemName, itemData)
+            end
+        end
+    end
+
+    -- Additional inventory adapters (qs/codem/ps/lj etc)
+    local inventoryResource = detectInventoryResource()
+    if inventoryResource and inventoryResource ~= 'ox_inventory' then
+        local adapterItems = nil
+        local okList, list = callInventoryExport(inventoryResource, 'GetItemList')
+        if okList and type(list) == 'table' then
+            adapterItems = list
+        else
+            local okItems, resultItems = callInventoryExport(inventoryResource, 'GetItems')
+            if okItems and type(resultItems) == 'table' then
+                adapterItems = resultItems
+            else
+                local okRaw, rawItems = callInventoryExport(inventoryResource, 'Items')
+                if okRaw and type(rawItems) == 'table' then
+                    adapterItems = rawItems
                 end
-                if not exists then
-                    table.insert(items, {
-                        name = itemName,
-                        label = itemData.label or itemName,
-                        weight = itemData.weight or 0,
-                        description = itemData.description or '',
-                        useable = itemData.consume ~= nil or false,
-                        unique = itemData.stack == false or false,
-                        type = 'item',
-                        image = itemName .. '.png'
-                    })
+            end
+        end
+
+        if type(adapterItems) == 'table' then
+            for key, itemData in pairs(adapterItems) do
+                if type(itemData) == 'table' then
+                    local itemName = tostring(itemData.name or key or '')
+                    addItemDefinition(itemName, itemData)
                 end
             end
         end
