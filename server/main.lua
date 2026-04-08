@@ -175,6 +175,8 @@ end
 local function detectFramework()
     if GetResourceState('qb-core') == 'started' then
         return 'qbcore'
+    elseif GetResourceState('qbx-core') == 'started' then
+        return 'qbox'
     elseif GetResourceState('es_extended') == 'started' then
         return 'esx'
     else
@@ -185,10 +187,12 @@ end
 -- Initialize framework on startup
 CreateThread(function()
     frameworkName = detectFramework()
-    
     if frameworkName == 'qbcore' then
         Framework = exports['qb-core']:GetCoreObject()
         print('^2[DG-Bridge] Detected framework: QBCore^0')
+    elseif frameworkName == 'qbox' then
+        Framework = exports['qbx-core']:GetCoreObject()
+        print('^2[DG-Bridge] Detected framework: Qbox^0')
     elseif frameworkName == 'esx' then
         Framework = exports['es_extended']:getSharedObject()
         print('^2[DG-Bridge] Detected framework: ESX^0')
@@ -235,7 +239,7 @@ end
 
 -- Export: Kick player (framework-agnostic)
 function kickPlayer(src, reason)
-    if frameworkName == 'qbcore' and Framework and Framework.Functions then
+    if (frameworkName == 'qbcore' or frameworkName == 'qbox') and Framework and Framework.Functions then
         Framework.Functions.Kick(src, reason or 'Kicked by admin', nil, nil)
     elseif frameworkName == 'esx' and Framework then
         -- ESX doesn't have built-in kick, use DropPlayer
@@ -250,7 +254,7 @@ function banPlayer(src, reason, duration)
     local license = getLicense(src)
     local playerName = GetPlayerName(src) or 'Unknown'
     
-    if frameworkName == 'qbcore' and Framework and Framework.Functions then
+    if (frameworkName == 'qbcore' or frameworkName == 'qbox') and Framework and Framework.Functions then
         -- QBCore has built-in ban system
         local banTime = duration and (os.time() + (duration * 3600)) or 9999999999
         Framework.Functions.BanInjection(src, playerName, license, reason, banTime)
@@ -267,7 +271,7 @@ end
 
 -- Export: Get player job (framework-agnostic)
 function getPlayerJob(src)
-    if frameworkName == 'qbcore' and Framework and Framework.Functions then
+    if (frameworkName == 'qbcore' or frameworkName == 'qbox') and Framework and Framework.Functions then
         local Player = Framework.Functions.GetPlayer(src)
         if Player and Player.PlayerData and Player.PlayerData.job then
             return Player.PlayerData.job.name, Player.PlayerData.job.grade.level
@@ -284,8 +288,7 @@ end
 -- Export: Get player money (framework-agnostic)
 function getPlayerMoney(src, moneyType)
     moneyType = moneyType or 'cash'
-    
-    if frameworkName == 'qbcore' and Framework and Framework.Functions then
+    if (frameworkName == 'qbcore' or frameworkName == 'qbox') and Framework and Framework.Functions then
         local Player = Framework.Functions.GetPlayer(src)
         if Player and Player.PlayerData and Player.PlayerData.money then
             return Player.PlayerData.money[moneyType] or 0
@@ -305,7 +308,7 @@ end
 
 -- Export: Check if player is admin
 function isPlayerAdmin(src)
-    if frameworkName == 'qbcore' and Framework and Framework.Functions then
+    if (frameworkName == 'qbcore' or frameworkName == 'qbox') and Framework and Framework.Functions then
         local hasPermission = IsPlayerAceAllowed(src, 'command.admin') or 
                             IsPlayerAceAllowed(src, 'dg.admin') or
                             IsPlayerAceAllowed(src, 'group.admin')
@@ -324,7 +327,7 @@ function addMoney(src, moneyType, amount)
     moneyType = moneyType or 'cash'
     amount = tonumber(amount) or 0
 
-    if frameworkName == 'qbcore' and Framework and Framework.Functions then
+    if (frameworkName == 'qbcore' or frameworkName == 'qbox') and Framework and Framework.Functions then
         local Player = Framework.Functions.GetPlayer(src)
         if Player then
             Player.Functions.AddMoney(moneyType, amount)
@@ -377,7 +380,7 @@ function removeMoney(src, moneyType, amount)
     moneyType = moneyType or 'cash'
     amount = tonumber(amount) or 0
 
-    if frameworkName == 'qbcore' and Framework and Framework.Functions then
+    if (frameworkName == 'qbcore' or frameworkName == 'qbox') and Framework and Framework.Functions then
         local Player = Framework.Functions.GetPlayer(src)
         if Player then
             Player.Functions.RemoveMoney(moneyType, amount)
@@ -447,7 +450,7 @@ function giveItem(src, item, amount, metadata)
         return true
     end
 
-    if frameworkName == 'qbcore' and Framework and Framework.Functions then
+    if (frameworkName == 'qbcore' or frameworkName == 'qbox') and Framework and Framework.Functions then
         local Player = Framework.Functions.GetPlayer(src)
         if Player then
             Player.Functions.AddItem(item, amount, false, metadata)
@@ -511,7 +514,7 @@ function removeItem(src, item, amount)
         return true
     end
 
-    if frameworkName == 'qbcore' and Framework and Framework.Functions then
+    if (frameworkName == 'qbcore' or frameworkName == 'qbox') and Framework and Framework.Functions then
         local Player = Framework.Functions.GetPlayer(src)
         if Player then
             Player.Functions.RemoveItem(item, amount)
@@ -561,7 +564,7 @@ function getInventory(src)
         return adapterInventory
     end
 
-    if frameworkName == 'qbcore' and Framework and Framework.Functions then
+    if (frameworkName == 'qbcore' or frameworkName == 'qbox') and Framework and Framework.Functions then
         local Player = Framework.Functions.GetPlayer(src)
         if Player and Player.PlayerData and Player.PlayerData.items then
             -- QBCore items can be a table with numeric keys or slot keys
@@ -605,7 +608,7 @@ end
 
 -- Export: Get player gang (QBCore only)
 function getPlayerGang(src)
-    if frameworkName == 'qbcore' and Framework and Framework.Functions then
+    if (frameworkName == 'qbcore' or frameworkName == 'qbox') and Framework and Framework.Functions then
         local Player = Framework.Functions.GetPlayer(src)
         if Player and Player.PlayerData and Player.PlayerData.gang then
             return Player.PlayerData.gang.name, Player.PlayerData.gang.grade.level
@@ -653,7 +656,7 @@ end
 
 -- Export: Get player character name
 function getCharacterName(src)
-    if frameworkName == 'qbcore' and Framework and Framework.Functions then
+    if (frameworkName == 'qbcore' or frameworkName == 'qbox') and Framework and Framework.Functions then
         local Player = Framework.Functions.GetPlayer(src)
         if Player and Player.PlayerData and Player.PlayerData.charinfo then
             return Player.PlayerData.charinfo.firstname .. ' ' .. Player.PlayerData.charinfo.lastname
@@ -669,7 +672,7 @@ end
 
 -- Export: Get player metadata
 function getMetadata(src, key)
-    if frameworkName == 'qbcore' and Framework and Framework.Functions then
+    if (frameworkName == 'qbcore' or frameworkName == 'qbox') and Framework and Framework.Functions then
         local Player = Framework.Functions.GetPlayer(src)
         if Player and Player.PlayerData and Player.PlayerData.metadata then
             return Player.PlayerData.metadata[key]
@@ -685,7 +688,7 @@ end
 
 -- Export: Set player metadata
 function setMetadata(src, key, value)
-    if frameworkName == 'qbcore' and Framework and Framework.Functions then
+    if (frameworkName == 'qbcore' or frameworkName == 'qbox') and Framework and Framework.Functions then
         local Player = Framework.Functions.GetPlayer(src)
         if Player and Player.Functions then
             Player.Functions.SetMetaData(key, value)
