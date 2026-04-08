@@ -5,25 +5,53 @@ local Framework = nil
 local frameworkName = nil
 
 -- Detect framework on startup
-CreateThread(function()
-    if GetResourceState('qb-core') == 'started' then
-        Framework = exports['qb-core']:GetCoreObject()
-        frameworkName = 'qbcore'
-        print('^2[DG-Bridge] Detected framework: QBCore^0')
-    elseif GetResourceState('qbx-core') == 'started' then
-        Framework = exports['qbx-core']:GetCoreObject()
-        frameworkName = 'qbox'
-        print('^2[DG-Bridge] Detected framework: Qbox^0')
-    elseif GetResourceState('es_extended') == 'started' then
-        Framework = exports['es_extended']:getSharedObject()
-        frameworkName = 'esx'
-        print('^2[DG-Bridge] Detected framework: ESX^0')
-    else
+local function detectFramework()
+    local cfg = Config and Config.Framework and Config.Framework:lower() or 'auto'
+    if cfg == 'qbcore' then
+        if GetResourceState('qb-core') == 'started' then
+            Framework = exports['qb-core']:GetCoreObject()
+            frameworkName = 'qbcore'
+            print('^2[DG-Bridge] Forced framework: QBCore^0')
+        end
+    elseif cfg == 'qbox' then
+        if GetResourceState('qbx-core') == 'started' then
+            Framework = exports['qbx-core']:GetCoreObject()
+            frameworkName = 'qbox'
+            print('^2[DG-Bridge] Forced framework: Qbox^0')
+        end
+    elseif cfg == 'esx' then
+        if GetResourceState('es_extended') == 'started' then
+            Framework = exports['es_extended']:getSharedObject()
+            frameworkName = 'esx'
+            print('^2[DG-Bridge] Forced framework: ESX^0')
+        end
+    elseif cfg == 'standalone' then
         Framework = nil
         frameworkName = 'standalone'
-        print('^2[DG-Bridge] Running in Standalone mode^0')
+        print('^2[DG-Bridge] Forced Standalone mode^0')
+    else
+        -- auto-detect
+        if GetResourceState('qb-core') == 'started' then
+            Framework = exports['qb-core']:GetCoreObject()
+            frameworkName = 'qbcore'
+            print('^2[DG-Bridge] Detected framework: QBCore^0')
+        elseif GetResourceState('qbx-core') == 'started' then
+            Framework = exports['qbx-core']:GetCoreObject()
+            frameworkName = 'qbox'
+            print('^2[DG-Bridge] Detected framework: Qbox^0')
+        elseif GetResourceState('es_extended') == 'started' then
+            Framework = exports['es_extended']:getSharedObject()
+            frameworkName = 'esx'
+            print('^2[DG-Bridge] Detected framework: ESX^0')
+        else
+            Framework = nil
+            frameworkName = 'standalone'
+            print('^2[DG-Bridge] Running in Standalone mode^0')
+        end
     end
-end)
+end
+
+CreateThread(detectFramework)
 
 -- Export: Get framework object
 function getFramework()
