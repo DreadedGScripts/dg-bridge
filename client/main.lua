@@ -1,3 +1,15 @@
+-- Set player health (client event)
+RegisterNetEvent('dg-bridge:client:setHealth')
+AddEventHandler('dg-bridge:client:setHealth', function(health)
+    local ped = PlayerPedId()
+    SetEntityHealth(ped, health or 200)
+end)
+
+-- Clear player tasks (client event)
+RegisterNetEvent('dg-bridge:client:clearTasks')
+AddEventHandler('dg-bridge:client:clearTasks', function()
+    ClearPedTasksImmediately(PlayerPedId())
+end)
 -- DG-Bridge Client
 -- Framework detection and utilities for client-side
 
@@ -30,15 +42,21 @@ local function detectFramework()
         frameworkName = 'standalone'
         print('^2[DG-Bridge] Forced Standalone mode^0')
     else
-        -- auto-detect
-        if GetResourceState('qb-core') == 'started' then
-            Framework = exports['qb-core']:GetCoreObject()
-            frameworkName = 'qbcore'
-            print('^2[DG-Bridge] Detected framework: QBCore^0')
-        elseif GetResourceState('qbx-core') == 'started' then
+        -- auto-detect, prefer Qbox if both are running
+        local qbcoreStarted = GetResourceState('qb-core') == 'started'
+        local qboxStarted = GetResourceState('qbx-core') == 'started'
+        if qbcoreStarted and qboxStarted then
             Framework = exports['qbx-core']:GetCoreObject()
             frameworkName = 'qbox'
             print('^2[DG-Bridge] Detected framework: Qbox^0')
+        elseif qboxStarted then
+            Framework = exports['qbx-core']:GetCoreObject()
+            frameworkName = 'qbox'
+            print('^2[DG-Bridge] Detected framework: Qbox^0')
+        elseif qbcoreStarted then
+            Framework = exports['qb-core']:GetCoreObject()
+            frameworkName = 'qbcore'
+            print('^2[DG-Bridge] Detected framework: QBCore^0')
         elseif GetResourceState('es_extended') == 'started' then
             Framework = exports['es_extended']:getSharedObject()
             frameworkName = 'esx'
@@ -61,6 +79,11 @@ end
 -- Export: Check if QBCore
 function isQBCore()
     return frameworkName == 'qbcore'
+end
+
+-- Export: Check if Qbox
+function isQbox()
+    return frameworkName == 'qbox'
 end
 
 -- Export: Check if ESX
@@ -280,35 +303,31 @@ AddEventHandler('dg-bridge:vehicleKeys', function(plate)
 end)
 
 -- Client event: Remove all weapons from player
-RegisterNetEvent('dg-bridge:removeWeapons')
-AddEventHandler('dg-bridge:removeWeapons', function()
+RegisterNetEvent('dg-bridge:revive')
+AddEventHandler('dg-bridge:revive', function(health)
     local ped = PlayerPedId()
-    
-    -- Remove all weapons using native
-    RemoveAllPedWeapons(ped, true)
-    
-    -- Clear weapon components
-    SetPedWeaponTintIndex(ped, GetSelectedPedWeapon(ped), 0)
-end)
+    health = tonumber(health) or GetEntityMaxHealth(ped)
 
--- Client event: Give weapons to player
-RegisterNetEvent('dg-bridge:giveWeapons')
-AddEventHandler('dg-bridge:giveWeapons', function(weapons)
-    local ped = PlayerPedId()
-    
-    weapons = weapons or {'WEAPON_PISTOL', 'WEAPON_SMG'}
-    
-    for _, weaponName in ipairs(weapons) do
-        -- Ensure weapon name is uppercase and has WEAPON_ prefix
-        local weapon = weaponName:upper()
-        if not weapon:find('WEAPON_') then
-            weapon = 'WEAPON_' .. weapon
-        end
-        
-        -- Get weapon hash
-        local weaponHash = GetHashKey(weapon)
-        
-        -- Give weapon to ped
+    -- Try framework-specific revive events first
+    if frameworkName == 'qbcore' or frameworkName == 'qbox' then
+        TriggerEvent('hospital:client:Revive')
+    elseif frameworkName == 'esx' then
+        TriggerEvent('esx_ambulancejob:revive')
+    else
+        -- Try other common revive events for compatibility
+        TriggerEvent('hospital:client:Revive')
+        TriggerEvent('esx_ambulancejob:revive')
+    end
+
+    -- Always run native revive logic to guarantee standing
+    local coords = GetEntityCoords(ped)
+    NetworkResurrectLocalPlayer(coords.x, coords.y, coords.z, GetEntityHeading(ped), true, false)
+    SetEntityInvincible(ped, false)
+    ClearPedTasksImmediately(ped)
+    SetEntityHealth(ped, health)
+    SetPedArmour(ped, 100)
+    ClearPedBloodDamage(ped)
+end)
         GiveWeaponToPed(ped, weaponHash, 999, false, true)
         SetPedAmmo(ped, weaponHash, 999)
     end

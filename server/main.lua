@@ -173,10 +173,15 @@ end
 
 -- Auto-detect framework
 local function detectFramework()
-    if GetResourceState('qb-core') == 'started' then
-        return 'qbcore'
-    elseif GetResourceState('qbx-core') == 'started' then
+    -- Prefer Qbox if both are running
+    local qbcoreStarted = GetResourceState('qb-core') == 'started'
+    local qboxStarted = GetResourceState('qbx-core') == 'started'
+    if qbcoreStarted and qboxStarted then
         return 'qbox'
+    elseif qboxStarted then
+        return 'qbox'
+    elseif qbcoreStarted then
+        return 'qbcore'
     elseif GetResourceState('es_extended') == 'started' then
         return 'esx'
     else
@@ -1014,33 +1019,17 @@ end
 -- Export: Unified revive (framework-agnostic)
 function revivePlayer(src, health)
     health = tonumber(health) or 200
+    -- Always trigger the unified revive event on the client
+    TriggerClientEvent('dg-bridge:revive', src, health)
+    -- Also update metadata if using QBCore/Qbox
     if (frameworkName == 'qbcore' or frameworkName == 'qbox') and Framework and Framework.Functions then
         local Player = Framework.Functions.GetPlayer(src)
         if Player then
-            Player.Functions.Revive()
-            TriggerClientEvent('hospital:client:Revive', src)
-            -- Clear death/laststand states if present
             Player.PlayerData.metadata["isdead"] = false
             Player.PlayerData.metadata["inlaststand"] = false
-            SetEntityHealth(GetPlayerPed(src), health)
-            ClearPedTasksImmediately(GetPlayerPed(src))
-            return true
         end
-    elseif frameworkName == 'esx' and Framework then
-        local xPlayer = Framework.GetPlayerFromId(src)
-        if xPlayer then
-            TriggerClientEvent('esx_ambulancejob:revive', src)
-            SetEntityHealth(GetPlayerPed(src), health)
-            ClearPedTasksImmediately(GetPlayerPed(src))
-            return true
-        end
-    else
-        -- Standalone fallback
-        SetEntityHealth(GetPlayerPed(src), health)
-        ClearPedTasksImmediately(GetPlayerPed(src))
-        return true
     end
-    return false
+    return true
 end
 
 -- Export: Give vehicle keys to player
@@ -1193,8 +1182,9 @@ AddEventHandler('playerDropped', function(reason)
     TriggerEvent('dg-bridge:playerDropped', source, reason)
 end)
 
-AddEventHandler('baseevents:onPlayerDied', function()
-    TriggerEvent('dg-bridge:playerDied', source)
+
+AddEventHandler('baseevents:onPlayerDied', function(playerId)
+    TriggerEvent('dg-bridge:playerDied', playerId)
 end)
 
 AddEventHandler('hospital:client:Revive', function()
