@@ -26,11 +26,10 @@ end
 
 local function tryExport(resource, funcName, ...)
     if not isResourceStarted(resource) then return false end
-    
+    local args = {...}
     local ok, result = pcall(function()
-        return exports[resource][funcName](...)
+        return exports[resource][funcName](table.unpack(args))
     end)
-    
     return ok, result
 end
 
