@@ -1011,6 +1011,38 @@ function revivePlayer(src)
     return true
 end
 
+-- Export: Unified revive (framework-agnostic)
+function revivePlayer(src, health)
+    health = tonumber(health) or 200
+    if (frameworkName == 'qbcore' or frameworkName == 'qbox') and Framework and Framework.Functions then
+        local Player = Framework.Functions.GetPlayer(src)
+        if Player then
+            Player.Functions.Revive()
+            TriggerClientEvent('hospital:client:Revive', src)
+            -- Clear death/laststand states if present
+            Player.PlayerData.metadata["isdead"] = false
+            Player.PlayerData.metadata["inlaststand"] = false
+            SetEntityHealth(GetPlayerPed(src), health)
+            ClearPedTasksImmediately(GetPlayerPed(src))
+            return true
+        end
+    elseif frameworkName == 'esx' and Framework then
+        local xPlayer = Framework.GetPlayerFromId(src)
+        if xPlayer then
+            TriggerClientEvent('esx_ambulancejob:revive', src)
+            SetEntityHealth(GetPlayerPed(src), health)
+            ClearPedTasksImmediately(GetPlayerPed(src))
+            return true
+        end
+    else
+        -- Standalone fallback
+        SetEntityHealth(GetPlayerPed(src), health)
+        ClearPedTasksImmediately(GetPlayerPed(src))
+        return true
+    end
+    return false
+end
+
 -- Export: Give vehicle keys to player
 function giveVehicleKeys(src, plate)
     if not plate or plate == '' then return false end
@@ -1150,6 +1182,23 @@ RegisterServerEvent('dg-bridge:giveVehicleKeys')
 AddEventHandler('dg-bridge:giveVehicleKeys', function(plate)
     local src = source
     giveVehicleKeys(src, plate)
+end)
+
+-- Export: Unified event hooks (player join/leave, death, revive, job change)
+AddEventHandler('playerConnecting', function(name, setKickReason, deferrals)
+    TriggerEvent('dg-bridge:playerConnecting', source, name)
+end)
+
+AddEventHandler('playerDropped', function(reason)
+    TriggerEvent('dg-bridge:playerDropped', source, reason)
+end)
+
+AddEventHandler('baseevents:onPlayerDied', function()
+    TriggerEvent('dg-bridge:playerDied', source)
+end)
+
+AddEventHandler('hospital:client:Revive', function()
+    TriggerEvent('dg-bridge:playerRevived', source)
 end)
 
 print('^2[DG-Bridge] Server initialized^0')
