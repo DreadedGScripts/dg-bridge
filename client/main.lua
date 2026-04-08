@@ -72,9 +72,10 @@ end
 CreateThread(detectFramework)
 
 -- Export: Get framework object
-function getFramework()
+
+exports('getFramework', function()
     return Framework
-end
+end)
 
 -- Export: Check if QBCore
 function isQBCore()
