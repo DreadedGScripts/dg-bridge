@@ -10,6 +10,10 @@ CreateThread(function()
         Framework = exports['qb-core']:GetCoreObject()
         frameworkName = 'qbcore'
         print('^2[DG-Bridge] Detected framework: QBCore^0')
+    elseif GetResourceState('qbx-core') == 'started' then
+        Framework = exports['qbx-core']:GetCoreObject()
+        frameworkName = 'qbox'
+        print('^2[DG-Bridge] Detected framework: Qbox^0')
     elseif GetResourceState('es_extended') == 'started' then
         Framework = exports['es_extended']:getSharedObject()
         frameworkName = 'esx'
@@ -203,9 +207,15 @@ AddEventHandler('dg-bridge:revive', function()
     local ped = PlayerPedId()
     
     -- Try framework-specific revive events first
-    if frameworkName == 'qbcore' then
+    if frameworkName == 'qbcore' or frameworkName == 'qbox' then
         TriggerEvent('hospital:client:Revive')
     elseif frameworkName == 'esx' then
+        TriggerEvent('esx_ambulancejob:revive')
+    elseif frameworkName == 'standalone' then
+        -- No framework, use fallback only
+    else
+        -- Try other common revive events for compatibility
+        TriggerEvent('hospital:client:Revive')
         TriggerEvent('esx_ambulancejob:revive')
     end
     
